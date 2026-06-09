@@ -1,6 +1,6 @@
 .idea
 .venv
-tokens.txt
+.env
 credentials.py
 **/.DS_Store
 __pycache__
