@@ -136,7 +136,6 @@ async def message_handler(update, context):
         user_message = update.message.text
         prompt = context.user_data['talk_prompt']
         response = await chat_gpt.send_question(prompt, user_message)
-        await send_text(update, context, response)
 
         await send_text_buttons(
             update, context, response,
