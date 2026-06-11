@@ -37,6 +37,7 @@ async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
             }
     )
 
+# Диспетчер натискання кнопок
 async def random_buttons_handler(update: Update, context):
     query = update.callback_query.data
     if query == 'random_finish':
@@ -51,6 +52,7 @@ async def gpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     #await send_text(update, context, "Напишіть своє запитання для ChatGPT:")
     #context.user_data['waiting_for_gpt'] = True
 
+# Обробник повідомлень Користувач/GPT
 async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.user_data.get('waiting_for_gpt'):
         return
@@ -65,13 +67,16 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 chat_gpt = ChatGptService(credentials.ChatGPT_TOKEN)
 app = ApplicationBuilder().token(credentials.BOT_TOKEN).build()
 
+# Зареєструвати обробник повідомлень
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_message))
+
 # Зареєструвати обробник команди можна так:
 app.add_handler(CommandHandler('start', start))
 app.add_handler(CommandHandler('random', random))
 app.add_handler(CommandHandler('gpt', gpt))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, gpt_message))
 
 # Зареєструвати обробник колбеку можна так:
 app.add_handler(CallbackQueryHandler(random_buttons_handler, pattern='^random_.*'))
 app.add_handler(CallbackQueryHandler(default_callback_handler))
+
 app.run_polling()
