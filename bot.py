@@ -1,20 +1,25 @@
-from tkinter import dialog
-
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, ContextTypes, CommandHandler, MessageHandler, filters
 
 from gpt import ChatGptService
-from util import (load_message, send_text, send_image, show_main_menu,
-                  default_callback_handler, load_prompt, send_text_buttons)
+from util import (
+    load_message,
+    send_text,
+    send_image,
+    show_main_menu,
+    default_callback_handler,
+    load_prompt,
+    send_text_buttons)
 
 import credentials
 
 
 # ==================== СТАРТ ТА ГОЛОВНІ РЕЖИМИ ====================
-
+# Кнопки для головного меню /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_image(update, context, 'main')
     await send_text(update, context, load_message('main'))
+
     await show_main_menu(update, context, {
         'start': 'Головне меню',
         'random': 'Дізнатися випадковий цікавий факт 🧠',
@@ -23,158 +28,130 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'quiz': 'Взяти участь у квізі ❓'
     })
 
-
+# Кнопки для /random
 async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_image(update, context, 'random')
+
     response = await chat_gpt.send_question(load_prompt('random'), 'Давай рандомний факт!')
-    await send_text_buttons(update, context, response, {
-        'random_finish': 'Закінчити',
-        'random_one_more': 'Хочу ще факт'
-    })
 
+    await send_text_buttons(
+        update,
+        context,
+        response,
+        buttons={
+                    'random_finish': 'Закінчити',
+                    'random_one_more': 'Хочу ще факт'
+                }
+    )
 
+# Діалог з /gpt
 async def gpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_image(update, context, 'gpt')
     await send_text(update, context, load_message('gpt'))
-    context.user_data.update({'waiting_for_gpt': True, 'waiting_for_talk': False, 'waiting_for_quiz': False})
 
+    context.user_data['mode'] = 'gpt'
 
+# Кнопки для /talk
 async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_image(update, context, 'talk')
-    await send_text_buttons(update, context, load_message('talk'), {
-        'Cobain': 'Курт Кобейн',
-        'Elizabeth': 'Єлизавета II',
-        'Tolkien': 'Джон Толкін',
-        'Nietzsche': 'Фрідріх Ніцше',
-        'Hawking': 'Стівен Гокінг'
-    })
 
+    context.user_data['mode'] = 'talk'
 
+    await send_text_buttons(
+        update,
+        context,
+        load_message('talk'),
+        buttons={
+            'talk_cobain': 'Курт Кобейн',
+            'talk_queen': 'Єлизавета II',
+            'talk_tolkien': 'Джон Толкін',
+            'talk_nietzsche': 'Фрідріх Ніцше',
+            'talk_hawking': 'Стівен Гокінг'
+        }
+    )
+
+# Кнопки для /quiz
 async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    dialog.mode = 'quiz'
     await send_image(update, context, 'quiz')
-    await send_text_buttons(update, context, load_message('quiz'), {
-        'quiz_prog': "Програмування Python 🐍",
-        'quiz_math': "Математичні теорії 📐",
-        'quiz_biology': "Біологія 🌿",
-        'quiz_more': "Наявна тема"
-    })
+    context.user_data['mode'] = 'quiz'
+
+    await send_text_buttons(
+        update,
+        context,
+        load_message('quiz'),
+        buttons={
+                    'quiz_prog': "Програмування Python 🐍",
+                    'quiz_math': "Математичні теорії 📐",
+                    'quiz_biology': "Біологія 🌿"
+                }
+    )
 
 
 # ==================== ДИСПЕТЧЕР КНОПОК ====================
-
+# Логіка натискання кнопок у /random
 async def random_buttons_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query.data
+    query_random = update.callback_query.data
 
     # Логіка рандому
-    if query in ['random_finish', 'talk_finish']:
-        context.user_data.update({'waiting_for_talk': False, 'waiting_for_gpt': False, 'waiting_for_quiz': False})
+    if query_random in ['random_finish', 'talk_finish']:
         await start(update, context)
-        return
-    elif query == 'random_one_more':
+    elif query_random == 'random_one_more':
         await random(update, context)
-        return
 
+# Логіка натискання кнопок у /talk
+async def talk_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query_talk = update.callback_query.data
 
-
-    # Логіка генерації питання квізу
-    if query in ['quiz_prog', 'quiz_math', 'quiz_biology', 'quiz_more']:
-
-        if query != 'quiz_more':
-            context.user_data['quiz_topic'] = query
-
-        topic = context.user_data['quiz_topic']
-
-        topics = {
-            'quiz_prog': 'Python',
-            'quiz_math': 'теорія алгоритмів, теорія множин та математичний аналіз',
-            'quiz_biology': 'біологія'
-        }
-
-        prompt = f"""
-        Згенеруй ОДНЕ питання на тему {topics[topic]}.
-
-        Поверни відповідь строго у форматі:
-
-        ПИТАННЯ: ...
-        ВІДПОВІДЬ: ...
-
-        Відповідь має складатися максимум з кількох слів.
-        Не використовуй числа у відповіді.
-        """
-
-        response = await chat_gpt.send_question(
-            prompt,
-            "Створи питання"
-        )
-
-        lines = response.split('\n')
-
-        question = ""
-        answer = ""
-
-        for line in lines:
-            if line.startswith("ПИТАННЯ:"):
-                question = line.replace("ПИТАННЯ:", "").strip()
-
-            if line.startswith("ВІДПОВІДЬ:"):
-                answer = line.replace("ВІДПОВІДЬ:", "").strip()
-
-        context.user_data['quiz_answer'] = answer.lower()
-
-        context.user_data.update({
-            'waiting_for_quiz': True,
-            'waiting_for_gpt': False,
-            'waiting_for_talk': False
-        })
-
-        await send_text(update, context, question)
-        return
-
-
-
-    # Логіка вибору співрозмовника
-    prompts = {
-        'Cobain': "Ти Курт Кобейн. Відповідай від його імені.",
-        'Elizabeth': "Ти Єлизавета II. Відповідай від її імені.",
-        'Tolkien': "Ти Джон Толкін. Відповідай від його імені.",
-        'Nietzsche': "Ти Фрідріх Ніцше. Відповідай від його імені.",
-        'Hawking': "Ти Стівен Гокінг. Відповідай від його імені."
-    }
-    if query in prompts:
-        context.user_data.update({'talk_prompt': prompts[query], 'waiting_for_talk': True, 'waiting_for_gpt': False,
-                                  'waiting_for_quiz': False})
+    if query_talk in ['talk_cobain', 'talk_queen', 'talk_tolkien', 'talk_nietzsche', 'talk_hawking']:
+        context.user_data['talk_prompt'] = query_talk
         await send_text(update, context, "Напишіть повідомлення для співрозмовника.")
+
+# Логіка натискання кнопок у /quiz
+async def quiz_buttons_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query_quiz = update.callback_query.data
+
+    response = await chat_gpt.send_question(load_prompt('quiz'), update.callback_query.data)
+    await send_text(update, context, response)
 
 
 # ==================== ОБРОБКА ПОВІДОМЛЕНЬ ====================
-
 async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     response = await chat_gpt.send_question("", update.message.text)
     await send_text(update, context, response)
 
-
 async def talk_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    response = await chat_gpt.send_question(context.user_data['talk_prompt'], update.message.text)
-    await send_text_buttons(update, context, response, {'talk_finish': 'Закінчити'})
-
+    prompt = context.user_data.get('talk_prompt')
+    response = await chat_gpt.send_question(load_prompt(prompt), update.message.text)
+    await send_text_buttons(update, context, response, {'random_finish': 'Закінчити'})
 
 async def quiz_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_ans = update.message.text.strip().lower()
-    correct_ans = context.user_data.get('quiz_answer', '')
+    correct_ans = context.user_data.get('quiz_answer', '').lower()
 
-    reply = "Правильно!" if user_ans == correct_ans or user_ans in correct_ans else f"Неправильно! Правильна відповідь - {context.user_data.get('quiz_answer')}"
+    if user_ans == correct_ans:
+        reply = "Правильно!"
+    else:
+        reply = f"Неправильно! Правильна відповідь - {correct_ans}"
 
-    await send_text_buttons(update, context, reply, {'quiz_more': "Наступне запитання", 'talk_finish': "Закінчити"})
-
+    await send_text_buttons(
+        update,
+        context,
+        reply,
+        buttons={
+            'quiz_more': "Наступне запитання",
+            'quiz_finish': "Закінчити"
+        }
+    )
 
 # Головний роутер для тексту
-async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get('waiting_for_gpt'):
+async def message_handler(update, context):
+    mode = context.user_data.get('mode')
+
+    if mode == 'gpt':
         await gpt_message(update, context)
-    elif context.user_data.get('waiting_for_talk'):
+    elif mode == 'talk':
         await talk_message(update, context)
-    elif context.user_data.get('waiting_for_quiz'):
+    elif mode == 'quiz':
         await quiz_message(update, context)
 
 
@@ -187,7 +164,9 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler)
 for cmd in ['start', 'random', 'gpt', 'talk', 'quiz']:
     app.add_handler(CommandHandler(cmd, globals()[cmd]))
 
-app.add_handler(CallbackQueryHandler(random_buttons_handler))
+app.add_handler(CallbackQueryHandler(random_buttons_handler, pattern='^random_'))
+app.add_handler(CallbackQueryHandler(talk_button_handler, pattern='^talk_'))
+app.add_handler(CallbackQueryHandler(quiz_buttons_handler, pattern='^quiz_'))
 app.add_handler(CallbackQueryHandler(default_callback_handler))
 
 app.run_polling()
