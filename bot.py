@@ -126,12 +126,15 @@ async def talk_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def quiz_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_ans = update.message.text.strip().lower()
-    correct_ans = context.user_data.get('quiz_answer', '').lower()
+    correct_ans = context.user_data.get('quiz', '').strip().lower()
 
     if user_ans == correct_ans:
         reply = "Правильно!"
     else:
-        reply = f"Неправильно! Правильна відповідь - {correct_ans}"
+        original = context.user_data.get('quiz', '')
+        reply = f"Неправильно! Правильна відповідь - {original}"
+
+    context.user_data['waiting_for_quiz'] = False
 
     await send_text_buttons(
         update,
