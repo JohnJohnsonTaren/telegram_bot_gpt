@@ -1,5 +1,3 @@
-import token
-
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CallbackQueryHandler, ContextTypes, CommandHandler, MessageHandler, filters
 
@@ -11,7 +9,9 @@ from util import (
     show_main_menu,
     default_callback_handler,
     load_prompt,
-    send_text_buttons
+    send_text_buttons,
+    analyze_audio,
+    generate_audio_response
 )
 
 import credentials
@@ -20,6 +20,7 @@ import credentials
 # ==================== СТАРТ ТА ГОЛОВНІ РЕЖИМИ ====================
 # Кнопки для головного меню /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
     await send_image(update, context, 'main')
     await send_text(update, context, load_message('main'))
 
@@ -29,11 +30,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'gpt': 'Задати питання чату GPT 🤖',
         'talk': 'Поговорити з відомою особистістю 👤',
         'quiz': 'Взяти участь у квізі ❓',
-        'resume': 'Допомога з резюме 🖋️'
+        'resume': 'Допомога з резюме 🖋️',
+        'chat': "Голосовий GPTChat ✨"
     })
 
 # Кнопки для /random
 async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
     await send_image(update, context, 'random')
 
     response = await chat_gpt.send_question(load_prompt('random'), 'Давай рандомний факт!')
@@ -50,6 +53,7 @@ async def random(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Кнопка дял /gpt
 async def gpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
     await send_image(update, context, 'gpt')
     await send_text(update, context, load_message('gpt'))
 
@@ -57,6 +61,7 @@ async def gpt(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Кнопки для /talk
 async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
     await send_image(update, context, 'talk')
 
     context.user_data['mode'] = 'talk'
@@ -76,6 +81,7 @@ async def talk(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Кнопки для /quiz
 async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
     await send_image(update, context, 'quiz')
     context.user_data['mode'] = 'quiz'
 
@@ -93,6 +99,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Кнопка для /resume — сброс и старт первого вопроса
 async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
     await send_image(update, context, 'resume')
     context.user_data['mode'] = 'resume'
 
@@ -102,6 +109,15 @@ async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Загружаем список вопросов из файла по строкам
     questions = load_message('resume_questions').strip().split('\n')
+
+    if not questions:
+        await send_text(
+            update,
+            context,
+            text="Файл питань пустий"
+        )
+        return
+
     context.user_data['resume_questions'] = questions
 
     # Приветствие и первый вопрос
@@ -111,6 +127,23 @@ async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Привет! Давай составим резюме. Ответь на 10 вопросов.\n\n{questions[0]}",
         buttons={
             'resume_finish': "Назад"
+        }
+    )
+
+
+async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data.clear()
+
+    context.user_data['mode'] = 'chat'
+
+    await send_image(update, context, 'image_chat')
+
+    await send_text_buttons(
+        update,
+        context,
+        load_message('message_chat'),
+        buttons={
+            'random_finish': "Назад"
         }
     )
 
@@ -158,7 +191,7 @@ async def quiz_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ==================== ОБРОБКА ПОВІДОМЛЕНЬ ====================
 async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    response = await chat_gpt.send_question("", update.message.text)
+    response = await chat_gpt.send_question("", update.effective_message.text)
 
     await send_text_buttons(
         update,
@@ -171,12 +204,12 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def talk_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = context.user_data.get('talk_prompt')
-    response = await chat_gpt.send_question(load_prompt(prompt), update.message.text)
+    response = await chat_gpt.send_question(load_prompt(prompt), update.effective_message.text)
     await send_text_buttons(update, context, response, {'random_finish': 'Закінчити'})
 
 async def quiz_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, context, "Зачекайте, триває перевірка...")
-    answer = await chat_gpt.add_message(update.message.text)
+    answer = await chat_gpt.add_message(update.effective_message.text)
 
     await send_text_buttons(
         update,
@@ -188,6 +221,7 @@ async def quiz_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
            }
       )
 
+#*
 async def resume_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Натискання кнопки НАЗАД
     if update.callback_query:
@@ -203,7 +237,7 @@ async def resume_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Зберігаємо поточну відповідь
     answers.append(
-        f"Вопрос: {questions[step]}\nОтвет: {update.message.text}"
+        f"Вопрос: {questions[step]}\nОтвет: {update.effective_message.text}"
     )
     step += 1
     context.user_data['resume_step'] = step
@@ -244,6 +278,18 @@ async def resume_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons={'resume_finish': "Назад"}
     )
 
+async def chat_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    response = await chat_gpt.send_question("", update.effective_message.text)
+
+    await send_text_buttons(
+        update,
+        context,
+        response,
+        {
+            'random_finish': "Назад"
+        }
+    )
+
 
 # Головний роутер для тексту
 async def message_handler(update, context):
@@ -257,21 +303,78 @@ async def message_handler(update, context):
         await quiz_message(update, context)
     elif mode == 'resume':
         await resume_message(update, context)
+    elif mode == 'chat':
+        await chat_message(update, context)
+
+
+async def voice_handler(update, context):
+
+    if context.user_data.get('mode') != 'chat':
+        return
+
+    voice = update.effective_message.voice
+
+    file = await context.bot.get_file(
+        voice.file_id
+    )
+
+    await file.download_to_drive(
+        "voice.ogg"
+    )
+
+    text = await analyze_audio(
+        "voice.ogg"
+    )
+
+    answer = await chat_gpt.send_question(
+        "",
+        text
+    )
+
+    # Створюємо голосову відповідь
+    audio_file = await generate_audio_response(
+        answer
+    )
+
+    #Відправляємо голос
+
+
+    with open(audio_file, 'rb') as voice:
+        await context.bot.send_voice(
+            chat_id=update.effective_chat.id,
+            voice=voice
+    )
+
+    await send_text_buttons(
+        update,
+        context,
+        answer,
+        {
+            'random_finish': "Назад"
+        }
+    )
 
 
 # ==================== НАЛАШТУВАННЯ БОТА ====================
 chat_gpt = ChatGptService(credentials.ChatGPT_TOKEN)
 app = ApplicationBuilder().token(credentials.BOT_TOKEN).build()
 
+app.add_handler(
+    MessageHandler(
+        filters.VOICE,
+        voice_handler
+    )
+)
+
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_handler))
-for cmd in ['start', 'random', 'gpt', 'talk', 'quiz', 'resume']:
+for cmd in ['start', 'random', 'gpt', 'talk', 'quiz', 'resume', 'chat']:
     app.add_handler(CommandHandler(cmd, globals()[cmd]))
 
-
-app.add_handler(CallbackQueryHandler(random_buttons_handler, pattern='^random_'))
+app.add_handler(CallbackQueryHandler(random_buttons_handler, pattern='^random_.|talk_finish|resume_finish'))
 app.add_handler(CallbackQueryHandler(talk_button_handler, pattern='^talk_'))
-app.add_handler(CallbackQueryHandler(quiz_buttons_handler, pattern='^quiz_?'))
+app.add_handler(CallbackQueryHandler(quiz_buttons_handler, pattern='^quiz'))
 app.add_handler(CallbackQueryHandler(resume_message, pattern='^resume_finish$'))
+
 app.add_handler(CallbackQueryHandler(default_callback_handler))
 
 app.run_polling()
