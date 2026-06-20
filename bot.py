@@ -18,7 +18,7 @@ import credentials
 
 
 # ==================== СТАРТ ТА ГОЛОВНІ РЕЖИМИ ====================
-scores = {}
+
 
 # Кнопки для головного меню /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -86,6 +86,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     await send_image(update, context, 'quiz')
     context.user_data['mode'] = 'quiz'
+    context.user_data['score'] = 0
 
     await send_text_buttons(
         update,
@@ -99,7 +100,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 }
     )
     # Лічильник правильних відповідей
-    scores[update.message.from_user.id] = 0
+    context.user_data['score'] += 1
 
 # Кнопка для /resume — сброс и старт первого вопроса
 async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -213,12 +214,15 @@ async def talk_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def quiz_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    score = context.user_data.get('score', 0)
     await send_text(update, context, "Зачекайте, триває перевірка...")
     answer = await chat_gpt.add_message(update.effective_message.text)
 
+    # Лічильник
     if answer == "Правильно!":
-        scores[update.message.from_user.id] += 1
-        await send_text(update, context, f"Правильних відповідей: {scores[update.message.from_user.id]}")
+        # Безпечний лічильник відповідей
+        context.user_data['score'] = context.user_data.get('score', 0) + 1
+        await send_text(update, context, f"Ваших правильних відповідей: {score}")
 
     await send_text_buttons(
         update,

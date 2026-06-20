@@ -122,7 +122,7 @@ async def analyze_audio(path: str) -> str:
 # Аудіо вхід в модель
 async def generate_audio_response(
         text: str,
-        output_filename: str = "answer.mp3"):
+        output_filename: str = "answer.ogg"):
     response = await client.audio.speech.create(
         model="gpt-4o-mini-tts",
         voice="alloy",
