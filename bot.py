@@ -98,6 +98,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'random_finish': "Назад"
                 }
     )
+    # Лічильник правильних відповідей
     scores[update.message.from_user.id] = 0
 
 # Кнопка для /resume — сброс и старт первого вопроса
@@ -156,11 +157,11 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def random_buttons_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_random = update.callback_query.data
 
-    # Логіка рандому
-    if query_random in ['random_finish', 'talk_finish', 'resume_finish']:
-        await start(update, context)
-    elif query_random == 'random_one_more':
+
+    if query_random == 'random_one_more':
         await random(update, context)
+    else:
+        await start(update, context)
 
 
 # Логіка натискання кнопок у /talk
