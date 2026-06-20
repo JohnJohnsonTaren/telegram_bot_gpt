@@ -157,7 +157,6 @@ async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def random_buttons_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_random = update.callback_query.data
 
-
     if query_random == 'random_one_more':
         await random(update, context)
     else:
@@ -206,10 +205,12 @@ async def gpt_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }
     )
 
+
 async def talk_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = context.user_data.get('talk_prompt')
     response = await chat_gpt.send_question(load_prompt(prompt), update.effective_message.text)
     await send_text_buttons(update, context, response, {'random_finish': 'Закінчити'})
+
 
 async def quiz_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, context, "Зачекайте, триває перевірка...")
