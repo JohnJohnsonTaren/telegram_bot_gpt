@@ -1,10 +1,7 @@
-import base64
-
 from openai import AsyncOpenAI
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Message, \
     BotCommand, MenuButtonCommands, BotCommandScopeChat, MenuButtonDefault
 from telegram import Update
-from telegram._files import voice
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
@@ -110,54 +107,26 @@ class Dialog:
 
 
 # Аудіо вхід в модель
-# Инициализируем асинхронный клиент OpenAI
+# Ініціалізуємо асинхронний клієнт OpenAI
 client = AsyncOpenAI(api_key=ChatGPT_TOKEN)
 
 async def analyze_audio(path: str) -> str:
-
-
     with open(path, "rb") as audio_file:
-
         transcription = await client.audio.transcriptions.create(
             model="gpt-4o-mini-transcribe",
             file=audio_file
         )
-
-
     return transcription.text
 
 
 # Аудіо вхід в модель
 async def generate_audio_response(
         text: str,
-        output_filename: str = "answer.mp3"
-):
+        output_filename: str = "answer.mp3"):
     response = await client.audio.speech.create(
         model="gpt-4o-mini-tts",
         voice="alloy",
         input=text
     )
-
     response.write_to_file(output_filename)
-
     return output_filename
-
-    # # Асинхронний запит до OpenAI
-    # completion = await client.chat.completions.create(
-    #     model="gpt-audio-1.5",
-    #     modalities=["text", "audio"],
-    #     audio={"voice": "alloy", "format": "wav"},
-    #     messages=[
-    #         {
-    #             "role": "user",
-    #             "content": prompt
-    #         }
-    #     ]
-    # )
-
-    # Декодування та збереження аудіофайлу
-    wav_bytes = base64.b64decode(completion.choices[0].message.audio.data)
-    with open(output_filename, "wb") as f:
-        f.write(wav_bytes)
-
-    return completion.choices[0]

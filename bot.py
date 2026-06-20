@@ -18,6 +18,8 @@ import credentials
 
 
 # ==================== СТАРТ ТА ГОЛОВНІ РЕЖИМИ ====================
+scores = {}
+
 # Кнопки для головного меню /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -96,6 +98,7 @@ async def quiz(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'random_finish': "Назад"
                 }
     )
+    scores[update.message.from_user.id] = 0
 
 # Кнопка для /resume — сброс и старт первого вопроса
 async def resume(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -211,6 +214,10 @@ async def quiz_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await send_text(update, context, "Зачекайте, триває перевірка...")
     answer = await chat_gpt.add_message(update.effective_message.text)
 
+    if answer == "Правильно!":
+        scores[update.message.from_user.id] += 1
+        await send_text(update, context, f"Правильних відповідей: {scores[update.message.from_user.id]}")
+
     await send_text_buttons(
         update,
         context,
@@ -221,7 +228,7 @@ async def quiz_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
            }
       )
 
-#*
+
 async def resume_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Натискання кнопки НАЗАД
     if update.callback_query:
@@ -237,7 +244,7 @@ async def resume_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Зберігаємо поточну відповідь
     answers.append(
-        f"Вопрос: {questions[step]}\nОтвет: {update.effective_message.text}"
+        f"Питання: {questions[step]}\nВідповідь: {update.effective_message.text}"
     )
     step += 1
     context.user_data['resume_step'] = step
@@ -313,18 +320,10 @@ async def voice_handler(update, context):
         return
 
     voice = update.effective_message.voice
+    file = await context.bot.get_file(voice.file_id)
 
-    file = await context.bot.get_file(
-        voice.file_id
-    )
-
-    await file.download_to_drive(
-        "voice.ogg"
-    )
-
-    text = await analyze_audio(
-        "voice.ogg"
-    )
+    await file.download_to_drive("voice.ogg")
+    text = await analyze_audio("voice.ogg")
 
     answer = await chat_gpt.send_question(
         "",
@@ -332,13 +331,9 @@ async def voice_handler(update, context):
     )
 
     # Створюємо голосову відповідь
-    audio_file = await generate_audio_response(
-        answer
-    )
+    audio_file = await generate_audio_response(answer)
 
-    #Відправляємо голос
-
-
+    #Відправляємо голосову відповідь
     with open(audio_file, 'rb') as voice:
         await context.bot.send_voice(
             chat_id=update.effective_chat.id,
